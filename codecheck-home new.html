@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeCheck — найди ошибку</title>
+  <style>
+    :root {
+      --site-primary: #269C9A;
+      --site-on-primary: #FFFFFF;
+      --site-secondary: #E2F5F2;
+      --site-on-secondary: #246B68;
+      --site-background: #F5FBFA;
+      --site-on-background: #183A3A;
+      --site-font-body: "Trebuchet MS", "Segoe UI", sans-serif;
+      --site-font-heading: "Trebuchet MS", "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--site-font-body); background: light-dark(#F5FBFA, #101827); color: light-dark(#183A3A, #EDF3FF); }
+    #app { min-height: 100vh; display: flex; flex-direction: column; }
+    button { font: inherit; cursor: pointer; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px clamp(18px, 5vw, 64px); background: light-dark(#FFFFFF, #172235); border-bottom:1px solid light-dark(#DCEDEB,#2B3950); }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:-.03em; font-size:20px; }
+    .brand-mark { width:34px; height:34px; display:grid; place-items:center; border-radius:11px; background:var(--site-primary); color:var(--site-on-primary); font-weight:800; }
+    .nav { display:flex; align-items:center; gap:22px; }
+    .nav button { border:0; background:transparent; color:light-dark(#52627A,#A8B7CD); padding:8px 0; font-size:14px; }
+    .nav button.active { color:var(--site-primary); font-weight:700; }
+    main { flex:1; width:100%; max-width:1160px; margin:0 auto; padding:clamp(22px,5vw,56px) 22px 52px; }
+    .hero { display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center; background:light-dark(linear-gradient(125deg,#FFFFFF,#EAF7F5),#172235); border:1px solid light-dark(#DCEDEB,#2B3950); border-radius:26px; padding:clamp(26px,5vw,58px); overflow:hidden; }
+    .eyebrow { display:inline-flex; background:var(--site-secondary); color:var(--site-on-secondary); border-radius:999px; padding:7px 12px; font-size:12px; font-weight:700; letter-spacing:.02em; }
+    h1,h3 { font-family:var(--site-font-heading); letter-spacing:-.04em; line-height:1.12; }
+    h1 { font-size:clamp(36px,5vw,58px); margin:18px 0 16px; max-width:590px; }
+    p { line-height:1.65; color:light-dark(#586981,#A8B7CD); }
+    .hero p { max-width:500px; font-size:17px; margin:0 0 25px; }
+    .btn { border:0; border-radius:13px; background:var(--site-primary); color:var(--site-on-primary); padding:13px 19px; font-weight:700; box-shadow:0 8px 20px #269c9a2b; transition:transform .15s, filter .15s; }
+    .btn:hover { filter:brightness(1.05); transform:translateY(-1px); }
+    .code-art { background:#111B2C; color:#D9E7FF; border-radius:17px; padding:0 0 18px; box-shadow:0 24px 50px #1d355a35; transform:rotate(1deg); border:1px solid #31445f; overflow:hidden; }
+    .window-dots { display:flex; gap:6px; padding:14px 16px; border-bottom:1px solid #283950; margin-bottom:14px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#F87171; } .dot:nth-child(2){background:#FBBF24}.dot:nth-child(3){background:#34D399}
+    .code-lines { padding:4px 20px; font:13px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+    .kw { color:#9CBAFF; } .str { color:#F7B2A4; }
+    .features { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:24px 0 0; }
+    .feature { display:flex; gap:13px; padding:20px 18px; border-radius:17px; background:light-dark(#FFFFFF,#172235); border:1px solid light-dark(#E5EBF5,#2B3950); }
+    .feature-icon { flex:0 0 42px; width:42px; height:42px; border-radius:14px; background:var(--site-secondary); color:var(--site-primary); display:grid; place-items:center; font-size:20px; }
+    .feature h3 { font-size:15px; margin:2px 0 6px; letter-spacing:-.02em; }
+    .feature p { font-size:13px; margin:0; line-height:1.5; }
+    footer { border-top:1px solid light-dark(#E0E8F4,#2B3950); padding:22px; text-align:center; color:light-dark(#718096,#A8B7CD); font-size:13px; }
+    .toast { position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); background:#183A3A; color:#fff; padding:12px 20px; border-radius:12px; font-size:14px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:10; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    @media (max-width:760px) { .topbar { flex-wrap:wrap; } .hero { grid-template-columns:1fr; gap:28px; } .features { grid-template-columns:1fr; } }
+    @media (prefers-color-scheme:dark) { .eyebrow { background:#244442; color:#C8EFEB; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // ===== Настройки страницы =====
+    const SITE = {
+      name: 'CodeCheck',
+      footer: 'CodeCheck · Учись понимать код, а не просто исправлять ошибки',
+    };
+
+    // Пункты меню. Пока работает только «Главная», остальные — заглушки.
+    // Когда появятся страницы, замените stub: true на href: 'tasks.html' и т.д.
+    const NAV = [
+      { id: 'home',  label: 'Главная' },
+      { id: 'tasks', label: 'Задания',  stub: true },
+      { id: 'about', label: 'О проекте', stub: true },
+    ];
+
+    const HERO = {
+      eyebrow: 'Обучение C#',
+      title: ['Найди ошибку.', 'Пойми код.'],
+      text: 'Проверь свой код на ошибки и научись исправлять их с понятными объяснениями. Без сложных терминов — шаг за шагом.',
+      button: 'Начать проверку',
+      // Заглушка: сюда позже вставить ссылку, например href: 'tasks.html'
+      buttonHref: null,
+    };
+
+    const FEATURES = [
+      { icon: '◎', title: 'Реальные ошибки',      text: 'Учись на типичных ошибках начинающих в C#.' },
+      { icon: '♧', title: 'Понятные объяснения',   text: 'Узнай, почему код работает неправильно и как его исправить.' },
+      { icon: '↗', title: 'Развивайся',            text: 'Становись увереннее в программировании с каждым заданием.' },
+    ];
+
+    // ===== Вспомогательные функции =====
+    function el(tag, props = {}, children = []) {
+      const node = document.createElement(tag);
+      for (const [key, value] of Object.entries(props)) {
+        if (key === 'class') node.className = value;
+        else if (key === 'html') node.innerHTML = value;
+        else if (key === 'text') node.textContent = value;
+        else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, value);
+      }
+      [].concat(children).forEach(c => node.append(c));
+      return node;
+    }
+
+    let toastTimer;
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    // Единая точка перехода: заглушка или реальная ссылка
+    function go(target) {
+      if (target.stub || !target.href) {
+        showToast('Эта страница пока в разработке');
+      } else {
+        window.location.href = target.href;
+      }
+    }
+
+    // ===== Отрисовка =====
+    function renderHeader() {
+      const nav = el('nav', { class: 'nav', 'aria-label': 'Основная навигация' },
+        NAV.map(item => el('button', {
+          class: item.id === 'home' ? 'active' : '',
+          text: item.label,
+          onclick: () => item.id === 'home' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : go(item),
+        }))
+      );
+      return el('header', { class: 'topbar' }, [
+        el('div', { class: 'brand', html: '<span class="brand-mark">&lt;/&gt;</span> ' + SITE.name }),
+        nav,
+      ]);
+    }
+
+    function renderHero() {
+      const codeHtml =
+        '<span class="kw">using</span> System;\n\n' +
+        '<span class="kw">class</span> Program\n{\n' +
+        '    <span class="kw">static void</span> Main()\n    {\n' +
+        '        <span class="kw">int</span> age = <span class="str">"15"</span>;\n' +
+        '        Console.WriteLine(age);\n    }\n}';
+
+      const startBtn = el('button', {
+        class: 'btn',
+        html: HERO.button + ' <span aria-hidden="true">→</span>',
+        onclick: () => go({ href: HERO.buttonHref, stub: !HERO.buttonHref }),
+      });
+
+      return el('section', { class: 'hero' }, [
+        el('div', {}, [
+          el('span', { class: 'eyebrow', text: HERO.eyebrow }),
+          el('h1', { html: HERO.title.join('<br>') }),
+          el('p', { text: HERO.text }),
+          startBtn,
+        ]),
+        el('div', { class: 'code-art', 'aria-label': 'Пример кода' }, [
+          el('div', { class: 'window-dots', html: '<span class="dot"></span><span class="dot"></span><span class="dot"></span>' }),
+          el('div', { class: 'code-lines', html: codeHtml }),
+        ]),
+      ]);
+    }
+
+    function renderFeatures() {
+      return el('section', { class: 'features' },
+        FEATURES.map(f => el('article', { class: 'feature' }, [
+          el('div', { class: 'feature-icon', text: f.icon }),
+          el('div', {}, [el('h3', { text: f.title }), el('p', { text: f.text })]),
+        ]))
+      );
+    }
+
+    function renderApp() {
+      const app = document.getElementById('app');
+      app.append(
+        renderHeader(),
+        el('main', {}, [renderHero(), renderFeatures()]),
+        el('footer', { text: SITE.footer }),
+        el('div', { class: 'toast', id: 'toast', role: 'status' })
+      );
+    }
+
+    renderApp();
+  </script>
+</body>
+</html>
