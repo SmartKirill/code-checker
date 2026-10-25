@@ -107,9 +107,9 @@ export default function Page() {
     handleDifficultyChange(selectedDifficulty);
   };
 
-  function onCheckButtonClick() {
-    if (!currentQuestion) {
-      alert('Задача ещё не загрузилась!');
+  async function onCheckButtonClick() {
+    if (!currentQuestion || !currentQuestion.input || !currentQuestion.output) {
+      alert('Задача ещё не загрузилась или отсутствуют тесты!');
       return;
     }
     if (!selectedLang) {
@@ -117,52 +117,66 @@ export default function Page() {
       return;
     }
 
-    const url = 'https://emkc.org';
-
-    const stdinData =
-      currentQuestion.input && currentQuestion.input.length > 0
-        ? currentQuestion.input.join('\n')
-        : '';
-    const expectedData =
-      currentQuestion.output && currentQuestion.output.length > 0
-        ? currentQuestion.output.join('\n')
-        : '';
-
-    const payload = {
-      source_code: code,
+    // Формируем пакет тестов для отправки в Judge0
+    const submissions = currentQuestion.input.map((inp, idx) => ({
       language_id: selectedLang.judge0_id,
-      stdin: stdinData,
-      expected_output: expectedData,
-    };
+      source_code: btoa(unescape(encodeURIComponent(code))),
+      stdin: btoa(unescape(encodeURIComponent(inp))),
+      expected_output: btoa(
+        unescape(encodeURIComponent(currentQuestion.output?.[idx] || '')),
+      ),
+    }));
 
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (data.status && data.status.id === 3) {
+    try {
+      // 1. Отправляем батч-запрос на создание сабмитов
+      const response = await fetch('https://snyk.io', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ submissions }),
+      });
+
+      const tokensData = await response.json();
+      const tokens = tokensData.map((s: any) => s.token).join(',');
+
+      // 2. Функция для периодического опроса статуса тестов (polling)
+      const checkStatus = async () => {
+        const res = await fetch(`https://snyk.io{tokens}&base64_encoded=true`);
+        const resultsData = await res.json();
+        const submissionsResult = resultsData.submissions;
+
+        // Если тесты еще в очереди (1) или обрабатываются (2), продолжаем опрос
+        const isProcessing = submissionsResult.some(
+          (s: any) => s.status_id === 1 || s.status_id === 2,
+        );
+
+        if (isProcessing) {
+          setTimeout(checkStatus, 1500);
+          return;
+        }
+
+        // 3. Подсчитываем результаты (status_id === 3 означает "Accepted")
+        const passedTests = submissionsResult.filter(
+          (s: any) => s.status_id === 3,
+        ).length;
+        const totalTests = submissionsResult.length;
+
+        alert(
+          `Результат проверки:\nУспешно пройдено тестов: ${passedTests} из ${totalTests}`,
+        );
+
+        if (passedTests === totalTests) {
           setIsSolved(true);
-          alert('✅ Тест пройден успешно! Всё верно.');
         } else {
           setIsSolved(false);
-          const outputDetails =
-            data.compile_output || data.stderr || data.stdout || 'нет вывода';
-          alert(
-            `❌ Ошибка: ${data.status?.description || 'Неизвестно'}\n\nВывод системы:\n${outputDetails}`,
-          );
         }
-      })
-      .catch((err) => {
-        console.error('Ошибка:', err);
-      });
+      };
+
+      // Запускаем проверку через 1.5 секунды
+      setTimeout(checkStatus, 1500);
+    } catch (err) {
+      console.error('Ошибка при работе с Judge0:', err);
+      alert('Не удалось отправить код на проверку.');
+    }
   }
 
   return (
