@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-// Описываем интерфейсы для типизации данных из JSON
 interface Language {
   id: string;
   name: string;
@@ -14,26 +13,33 @@ interface Language {
 interface Question {
   id: string | number;
   title: string;
+  text?: string;
   description: string;
   difficulty: string;
+  input?: string[];
+  output?: string[];
   examples?: Array<{ input: string; output: string }>;
 }
 
 export default function Page() {
   const [isSolved, setIsSolved] = useState<boolean>(false);
 
-  // --- ЛОГИКА СОСТОЯНИЙ ---
   const [languages, setLanguages] = useState<Language[]>([]);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
 
   const [selectedLang, setSelectedLang] = useState<Language | null>(null);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('Easy');
+  const [selectedDifficulty, setSelectedDifficulty] =
+    useState<string>('Лёгкая');
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [code, setCode] = useState<string>('');
 
-  // --- ЗАГРУЗКА ДАННЫХ ИЗ JSON ---
+  const difficultyMap: Record<string, string> = {
+    лёгкая: 'лёгкая',
+    средняя: 'средняя',
+    сложная: 'сложная',
+  };
+
   useEffect(() => {
-    // Загрузка языков
     fetch('/languages.json')
       .then((res) => res.json())
       .then((data: Language[]) => {
@@ -45,25 +51,27 @@ export default function Page() {
       })
       .catch((err) => console.error('Ошибка загрузки языков:', err));
 
-    // Загрузка вопросов
     fetch('/questions_1.json')
       .then((res) => res.json())
       .then((data: Question[]) => {
         setAllQuestions(data);
-        // Выбираем стартовую задачу с дефолтной сложностью "Easy"
+
+        const targetDiff = difficultyMap['лёгкая'];
         const filtered = data.filter(
-          (q) => q.difficulty.toLowerCase() === 'easy',
+          (q) => (q.difficulty || '').toLowerCase() === targetDiff,
         );
+
         if (filtered.length > 0) {
-          setCurrentQuestion(
-            filtered[Math.floor(Math.random() * filtered.length)],
-          );
+          const randomQ = filtered[Math.floor(Math.random() * filtered.length)];
+          setCurrentQuestion({
+            ...randomQ,
+            title: randomQ.title || randomQ.text || 'Без названия',
+          });
         }
       })
       .catch((err) => console.error('Ошибка загрузки вопросов:', err));
   }, []);
 
-  // --- ОБРАБОТЧИКИ СОБЫТИЙ ---
   const handleLanguageChange = (langId: string) => {
     const lang = languages.find((l) => l.id === langId);
     if (lang) {
@@ -74,16 +82,24 @@ export default function Page() {
 
   const handleDifficultyChange = (difficulty: string) => {
     setSelectedDifficulty(difficulty);
+
+    const targetDiff =
+      difficultyMap[difficulty.toLowerCase()] || difficulty.toLowerCase();
+
     const filtered = allQuestions.filter(
-      (q) => q.difficulty.toLowerCase() === difficulty.toLowerCase(),
+      (q) => (q.difficulty || '').toLowerCase() === targetDiff,
     );
+
     if (filtered.length > 0) {
       const randomIndex = Math.floor(Math.random() * filtered.length);
-      setCurrentQuestion(filtered[randomIndex]);
+      const randomQ = filtered[randomIndex];
+      setCurrentQuestion({
+        ...randomQ,
+        title: randomQ.title || randomQ.text || 'Без названия',
+      });
     } else {
       setCurrentQuestion(null);
     }
-    // Сбрасываем статус решения при смене задачи
     setIsSolved(false);
   };
 
@@ -93,7 +109,6 @@ export default function Page() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-white font-sans">
-      {/* ХЕДЕР: В стиле главной страницы */}
       <header className="flex h-16 items-center justify-between border-b border-white/10 px-6 bg-slate-900/50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-cyan-500 text-md font-bold shadow-md shadow-violet-500/20">
@@ -115,23 +130,18 @@ export default function Page() {
         </Link>
       </header>
 
-      {/* ОСНОВНОЙ РАБОЧИЙ ИНТЕРФЕЙС */}
       <main className="flex flex-1 overflow-hidden p-4 gap-4 bg-slate-950">
-        {/* ЛЕВАЯ ПАНЕЛЬ: Задачи и Примеры */}
         <section className="flex w-1/2 flex-col rounded-2xl border border-white/10 bg-slate-900/50 overflow-hidden shadow-xl backdrop-blur-xs">
-          {/* Таб-хедер панели */}
           <div className="border-b border-white/10 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Описание задачи
           </div>
 
-          {/* Скроллируемый контент */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold tracking-tight text-white">
                   {currentQuestion ? currentQuestion.title : 'Загрузка...'}
                 </h1>
-                {/* Подсветка сложности градиентным бордером */}
                 <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300">
                   {currentQuestion
                     ? currentQuestion.difficulty
@@ -145,35 +155,30 @@ export default function Page() {
               </p>
             </div>
 
-            {/* Блок примеров (Рендеринг через .map из JSON) */}
             <div className="space-y-4">
-              {currentQuestion?.examples &&
-                currentQuestion.examples.map((example, index) => (
-                  <div key={index} className="space-y-2">
-                    <span className="text-sm font-medium text-slate-200">
-                      Пример {index + 1}:
-                    </span>
-                    <div className="rounded-xl bg-slate-950 p-4 font-mono text-xs border border-white/5 space-y-1.5 shadow-inner">
-                      <div>
-                        <span className="text-slate-500">Ввод:</span>{' '}
-                        {example.input}
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Вывод:</span>{' '}
-                        {example.output}
-                      </div>
+              {currentQuestion?.input && currentQuestion.input.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-sm font-medium text-slate-200">
+                    Пример:
+                  </span>
+                  <div className="rounded-xl bg-slate-950 p-4 font-mono text-xs border border-white/5 space-y-1.5 shadow-inner">
+                    <div>
+                      <span className="text-slate-500">Ввод:</span>{' '}
+                      {currentQuestion.input[0]}
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Вывод:</span>{' '}
+                      {currentQuestion.output?.[0] || ''}
                     </div>
                   </div>
-                ))}
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        {/* ПРАВАЯ ПАНЕЛЬ: Управление и Редактор */}
         <section className="flex w-1/2 flex-col gap-4">
-          {/* Панель настроек (Язык / Сложность) */}
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-2.5 backdrop-blur-xs">
-            {/* Селектор Языка */}
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-400 font-medium">
                 Язык:
@@ -191,7 +196,6 @@ export default function Page() {
               </select>
             </div>
 
-            {/* Селектор Сложности */}
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-400 font-medium">
                 Сложность:
@@ -201,16 +205,13 @@ export default function Page() {
                 value={selectedDifficulty}
                 onChange={(e) => handleDifficultyChange(e.target.value)}
               >
-                <option value="Easy">Easy</option>
-                <option value="Medium">Medium</option>
-                <option value="Hard">Hard</option>
+                <option value="Лёгкая">Лёгкая</option>
+                <option value="Средняя">Средняя</option>
+                <option value="Сложная">Сложная</option>
               </select>
             </div>
           </div>
-
-          {/* Инпут редактора кода */}
           <div className="flex flex-1 flex-col rounded-2xl border border-white/10 bg-slate-900/50 overflow-hidden shadow-xl backdrop-blur-xs">
-            {/* Поле ввода кода */}
             <div className="flex-1 bg-slate-950 font-mono text-sm p-5 relative shadow-inner">
               <textarea
                 className="w-full h-full bg-transparent text-slate-200 resize-none focus:outline-none font-mono leading-relaxed"
@@ -220,7 +221,6 @@ export default function Page() {
               />
             </div>
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950/60 px-5 py-4">
-              {/* Кнопка отправки в Judge0 */}
               <button
                 className="rounded-xl bg-linear-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white px-6 py-2.5 text-sm font-bold transition-all shadow-md shadow-violet-500/10 hover:shadow-violet-500/20 active:scale-98"
                 onClick={() => {
@@ -232,9 +232,6 @@ export default function Page() {
                 Проверить код
               </button>
 
-              {/* УНИКАЛЬНАЯ ДИНАМИЧЕСКАЯ КНОПКА НАВИГАЦИИ */}
-              {/* Если задача решена идеально: становится яркой зеленой "Следующее задание" */}
-              {/* Если не решена: полупрозрачная серая "Пропустить" */}
               <button
                 className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all duration-300 active:scale-98 border ${
                   isSolved
@@ -242,11 +239,7 @@ export default function Page() {
                     : 'bg-transparent border-white/10 text-slate-400 hover:bg-white/5 hover:text-white'
                 }`}
                 onClick={() => {
-                  if (isSolved) {
-                    nextQuestion();
-                  } else {
-                    nextQuestion();
-                  }
+                  nextQuestion();
                 }}
               >
                 {isSolved ? 'Следующее задание →' : 'Пропустить задачу'}
