@@ -1,11 +1,11 @@
-
-import Link from "next/link";
+import Link from 'next/link';
+import Image from 'next/image';
 
 const languages = [
-  { name: "Python", symbol: "Py" },
-  { name: "C", symbol: "C" },
-  { name: "C++", symbol: "C++" },
-  { name: "Java", symbol: "Jv" },
+  { name: 'Python', image: '/languages/python.png' },
+  { name: 'C', image: '/languages/python.png' },
+  { name: 'C++', image: '/languages/python.png' },
+  { name: 'Java', image: '/languages/python.png' },
 ];
 
 export default function Home() {
@@ -15,7 +15,7 @@ export default function Home() {
         <header className="flex items-center justify-between border-b border-white/10 py-6">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500 text-xl font-bold">
-              {"</>"}
+              {'</>'}
             </div>
             <span className="text-2xl font-bold tracking-tight">
               Code<span className="text-violet-400">Step</span>
@@ -36,15 +36,15 @@ export default function Home() {
 
           <h1 className="mx-auto max-w-4xl text-5xl font-extrabold leading-tight tracking-tight md:text-7xl">
             Учись программировать
-            <span className="block bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="block bg-linear-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
               на практике
             </span>
           </h1>
 
           <p className="mx-auto mt-8 max-w-2xl text-lg leading-8 text-slate-300">
-            CodeStep помогает ученикам развивать навыки программирования
-            с помощью практических заданий. Выбирай язык, пиши код,
-            проверяй решения и учись на своих ошибках.
+            CodeStep помогает ученикам развивать навыки программирования с
+            помощью практических заданий. Выбирай язык, пиши код, проверяй
+            решения и учись на своих ошибках.
           </p>
 
           <Link
@@ -59,32 +59,6 @@ export default function Home() {
           </p>
         </section>
 
-        <section className="pb-20">
-          <h2 className="mb-8 text-center text-2xl font-bold">
-            Выбери свой язык программирования
-          </h2>
-
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {languages.map((language) => (
-              <Link
-                key={language.name}
-                href="/training"
-                className="group rounded-2xl border border-white/10 bg-white/5 p-7 text-center transition hover:-translate-y-1 hover:border-violet-400 hover:bg-violet-500/10"
-              >
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/20 text-xl font-bold text-violet-300">
-                  {language.symbol}
-                </div>
-                <h3 className="text-xl font-semibold">
-                  {language.name}
-                </h3>
-                <p className="mt-2 text-sm text-slate-400">
-                  Решать задачи →
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-
         <section className="pb-24">
           <h2 className="mb-10 text-center text-3xl font-bold">
             Как работает CodeStep?
@@ -93,19 +67,19 @@ export default function Home() {
           <div className="grid gap-5 md:grid-cols-3">
             {[
               {
-                number: "01",
-                title: "Выбери язык",
-                text: "Начни с Python, C, C++ или Java.",
+                number: '01',
+                title: 'Выбери язык',
+                text: 'Начни с Python, C, C++ или Java.',
               },
               {
-                number: "02",
-                title: "Напиши программу",
-                text: "Получи задание и напиши своё решение в редакторе.",
+                number: '02',
+                title: 'Напиши программу',
+                text: 'Получи задание и напиши своё решение в редакторе.',
               },
               {
-                number: "03",
-                title: "Проверь результат",
-                text: "Получи обратную связь, исправь ошибки и переходи дальше.",
+                number: '03',
+                title: 'Проверь результат',
+                text: 'Получи обратную связь, исправь ошибки и переходи дальше.',
               },
             ].map((step) => (
               <div
@@ -115,12 +89,8 @@ export default function Home() {
                 <span className="text-4xl font-bold text-violet-400">
                   {step.number}
                 </span>
-                <h3 className="mt-5 text-xl font-bold">
-                  {step.title}
-                </h3>
-                <p className="mt-3 leading-7 text-slate-400">
-                  {step.text}
-                </p>
+                <h3 className="mt-5 text-xl font-bold">{step.title}</h3>
+                <p className="mt-3 leading-7 text-slate-400">{step.text}</p>
               </div>
             ))}
           </div>
