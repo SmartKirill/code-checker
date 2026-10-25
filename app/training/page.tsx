@@ -23,6 +23,7 @@ interface Question {
 
 export default function Page() {
   const [isSolved, setIsSolved] = useState<boolean>(false);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
 
   const [languages, setLanguages] = useState<Language[]>([]);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
@@ -54,10 +55,25 @@ export default function Page() {
     fetch('/questions_1.json')
       .then((res) => res.json())
       .then((data: Question[]) => {
-        setAllQuestions(data);
+
+        const normalizedQuestions = data.map((question) => {
+          const tests = (question as Question & {
+            tests?: { input: string; output: string }[];
+          }).tests;
+
+          return {
+            ...question,
+            description: question.description || "",
+            input: question.input ?? tests?.map((test) => test.input) ?? [],
+            output: question.output ?? tests?.map((test) => test.output) ?? [],
+          };
+        });
+
+        setAllQuestions(normalizedQuestions);
+
 
         const targetDiff = difficultyMap['лёгкая'];
-        const filtered = data.filter(
+        const filtered = normalizedQuestions.filter(
           (q) => (q.difficulty || '').toLowerCase() === targetDiff,
         );
 
@@ -77,6 +93,7 @@ export default function Page() {
     if (lang) {
       setSelectedLang(lang);
       setCode(lang.default_code);
+      setIsSolved(false);
     }
   };
 
@@ -105,9 +122,11 @@ export default function Page() {
 
   const nextQuestion = () => {
     handleDifficultyChange(selectedDifficulty);
+    setCode(selectedLang?.default_code ?? "");
   };
 
   async function onCheckButtonClick() {
+    if (isChecking) return;
     if (!currentQuestion || !currentQuestion.input || !currentQuestion.output) {
       alert('Задача ещё не загрузилась или отсутствуют тесты!');
       return;
@@ -116,66 +135,83 @@ export default function Page() {
       alert('Выберите язык программирования!');
       return;
     }
-
-    // Формируем пакет тестов для отправки в Judge0
-    const submissions = currentQuestion.input.map((inp, idx) => ({
-      language_id: selectedLang.judge0_id,
-      source_code: btoa(unescape(encodeURIComponent(code))),
-      stdin: btoa(unescape(encodeURIComponent(inp))),
-      expected_output: btoa(
-        unescape(encodeURIComponent(currentQuestion.output?.[idx] || '')),
-      ),
-    }));
+    if (currentQuestion.input.length === 0 ||
+      currentQuestion.input.length !== currentQuestion.output.length) {
+      alert('В этой задаче неправильно настроены тесты. Сообщите разработчикам.');
+      return;
+    }
+    setIsChecking(true);
+    setIsSolved(false);
 
     try {
-      // 1. Отправляем батч-запрос на создание сабмитов
-      const response = await fetch('https://snyk.io', {
+      // Отправляем тесты только на свой сервер Next.js, без прямого обращения к Judge0.
+      const submitResponse = await fetch('/api/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ submissions }),
+        body: JSON.stringify({
+          submissions: currentQuestion.input.map((input, idx) => ({
+            language_id: selectedLang.judge0_id,
+            source_code: code,
+            stdin: input,
+            expected_output: currentQuestion.output![idx],
+          })),
+        }),
       });
+      const submitted = await submitResponse.json();
+      if (!submitResponse.ok) {
+        throw new Error(submitted.error || 'Не удалось отправить программу на проверку');
+      }
+      const tokens: string[] = submitted.tokens;
+      if (!Array.isArray(tokens) || tokens.length === 0) {
+        throw new Error('Сервер проверки не вернул идентификаторы тестов');
+      }
 
-      const tokensData = await response.json();
-      const tokens = tokensData.map((s: any) => s.token).join(',');
-
-      // 2. Функция для периодического опроса статуса тестов (polling)
-      const checkStatus = async () => {
-        const res = await fetch(`https://snyk.io{tokens}&base64_encoded=true`);
-        const resultsData = await res.json();
-        const submissionsResult = resultsData.submissions;
-
-        // Если тесты еще в очереди (1) или обрабатываются (2), продолжаем опрос
-        const isProcessing = submissionsResult.some(
-          (s: any) => s.status_id === 1 || s.status_id === 2,
+      // Асинхронно ожидаем завершения всех заданий.
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const resultResponse = await fetch(
+          `/api/check?tokens=${encodeURIComponent(tokens.join(','))}`,
+          { cache: 'no-store' },
         );
-
-        if (isProcessing) {
-          setTimeout(checkStatus, 1500);
-          return;
+        const results = await resultResponse.json();
+        if (!resultResponse.ok) {
+          throw new Error(results.error || 'Не удалось получить результаты');
+        }
+        const submissions = results.submissions as Array<{
+          status_id: number;
+          stderr?: string | null;
+          compile_output?: string | null;
+          message?: string | null;
+        }>;
+        if (!Array.isArray(submissions) || submissions.length !== tokens.length) {
+          throw new Error('Сервер вернул неполные результаты тестирования');
+        }
+        if (submissions.some((s) => s.status_id === 1 || s.status_id === 2)) {
+          continue;
         }
 
-        // 3. Подсчитываем результаты (status_id === 3 означает "Accepted")
-        const passedTests = submissionsResult.filter(
-          (s: any) => s.status_id === 3,
-        ).length;
-        const totalTests = submissionsResult.length;
-
-        alert(
-          `Результат проверки:\nУспешно пройдено тестов: ${passedTests} из ${totalTests}`,
-        );
-
-        if (passedTests === totalTests) {
-          setIsSolved(true);
+        const passed = submissions.filter((s) => s.status_id === 3).length;
+        const total = submissions.length;
+        setIsSolved(passed === total);
+        if (passed === total) {
+          alert(`Отличная работа! Пройдено тестов: ${passed} из ${total} 🎉`);
         } else {
-          setIsSolved(false);
+          const error = submissions.find((s) => s.status_id !== 3);
+          const detail = error?.compile_output || error?.stderr || error?.message;
+          alert(
+            `Пройдено тестов: ${passed} из ${total}.\n` +
+            (detail ? `Подсказка от проверяющего сервера: ${detail.slice(0, 350)}` :
+              'Проверь условия задачи и обработку всех входных данных.'),
+          );
         }
-      };
-
-      // Запускаем проверку через 1.5 секунды
-      setTimeout(checkStatus, 1500);
+        return;
+      }
+      throw new Error('Превышено время ожидания проверки. Повтори попытку.');
     } catch (err) {
-      console.error('Ошибка при работе с Judge0:', err);
-      alert('Не удалось отправить код на проверку.');
+      console.error('Ошибка проверки кода:', err);
+      alert(err instanceof Error ? err.message : 'Не удалось проверить код');
+    } finally {
+      setIsChecking(false);
     }
   }
 
@@ -289,15 +325,16 @@ export default function Page() {
                 className="w-full h-full bg-transparent text-slate-200 resize-none focus:outline-none font-mono leading-relaxed"
                 placeholder="# Пиши свой код здесь..."
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => { setCode(e.target.value); setIsSolved(false); }}
               />
             </div>
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950/60 px-5 py-4">
               <button
                 className="rounded-xl bg-linear-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white px-6 py-2.5 text-sm font-bold transition-all shadow-md shadow-violet-500/10 hover:shadow-violet-500/20 active:scale-98"
                 onClick={onCheckButtonClick}
+                disabled={isChecking}
               >
-                Проверить код
+                {isChecking ? "Проверяем..." : "Проверить код"}
               </button>
 
               <button
