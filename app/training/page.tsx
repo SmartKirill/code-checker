@@ -107,6 +107,64 @@ export default function Page() {
     handleDifficultyChange(selectedDifficulty);
   };
 
+  function onCheckButtonClick() {
+    if (!currentQuestion) {
+      alert('Задача ещё не загрузилась!');
+      return;
+    }
+    if (!selectedLang) {
+      alert('Выберите язык программирования!');
+      return;
+    }
+
+    const url = 'https://emkc.org';
+
+    const stdinData =
+      currentQuestion.input && currentQuestion.input.length > 0
+        ? currentQuestion.input.join('\n')
+        : '';
+    const expectedData =
+      currentQuestion.output && currentQuestion.output.length > 0
+        ? currentQuestion.output.join('\n')
+        : '';
+
+    const payload = {
+      source_code: code,
+      language_id: selectedLang.judge0_id,
+      stdin: stdinData,
+      expected_output: expectedData,
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.status && data.status.id === 3) {
+          setIsSolved(true);
+          alert('✅ Тест пройден успешно! Всё верно.');
+        } else {
+          setIsSolved(false);
+          const outputDetails =
+            data.compile_output || data.stderr || data.stdout || 'нет вывода';
+          alert(
+            `❌ Ошибка: ${data.status?.description || 'Неизвестно'}\n\nВывод системы:\n${outputDetails}`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.error('Ошибка:', err);
+      });
+  }
+
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-white font-sans">
       <header className="flex h-16 items-center justify-between border-b border-white/10 px-6 bg-slate-900/50 backdrop-blur-md">
@@ -164,11 +222,11 @@ export default function Page() {
                   <div className="rounded-xl bg-slate-950 p-4 font-mono text-xs border border-white/5 space-y-1.5 shadow-inner">
                     <div>
                       <span className="text-slate-500">Ввод:</span>{' '}
-                      {currentQuestion.input[0]}
+                      {currentQuestion.input.join(', ')}
                     </div>
                     <div>
                       <span className="text-slate-500">Вывод:</span>{' '}
-                      {currentQuestion.output?.[0] || ''}
+                      {currentQuestion.output?.join(', ') || ''}
                     </div>
                   </div>
                 </div>
@@ -223,11 +281,7 @@ export default function Page() {
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950/60 px-5 py-4">
               <button
                 className="rounded-xl bg-linear-to-r from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white px-6 py-2.5 text-sm font-bold transition-all shadow-md shadow-violet-500/10 hover:shadow-violet-500/20 active:scale-98"
-                onClick={() => {
-                  alert(
-                    `Отправка на Judge0.\nЯзык: ${selectedLang?.name} (ID: ${selectedLang?.judge0_id})\nКод отправлен.`,
-                  );
-                }}
+                onClick={onCheckButtonClick}
               >
                 Проверить код
               </button>
