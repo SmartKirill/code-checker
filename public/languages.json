@@ -1,0 +1,26 @@
+[
+  {
+    "id": "python",
+    "name": "Python",
+    "judge0_id": 71,
+    "default_code": "def solution():\n    # Напишите ваше решение здесь\n    pass\n\nif __name__ == '__main__':\n    print(solution())"
+  },
+  {
+    "id": "javascript",
+    "name": "JavaScript",
+    "judge0_id": 63,
+    "default_code": "function solution() {\n    // Напишите ваше решение здесь\n    return;\n}\n\nconsole.log(solution());"
+  },
+  {
+    "id": "cpp",
+    "name": "C++",
+    "judge0_id": 54,
+    "default_code": "#include <iostream>\n\nint main() {\n    // Напишите ваше решение здесь\n    std::cout << \"Hello World\";\n    return 0;\n}"
+  },
+  {
+    "id": "java",
+    "name": "Java",
+    "judge0_id": 62,
+    "default_code": "public class Main {\n    public static void main(String[] args) {\n        // Напишите ваше решение здесь\n    }\n}"
+  }
+]
